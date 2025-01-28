@@ -1,3 +1,4 @@
+const { validationResult } = require('express-validator');
 const users = require('../models/userModel');
 const { validateCEP } = require('../services/cepService');
 
@@ -6,6 +7,11 @@ const emailExists = (email) => {
 };
 
 const registerUser = async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+  
   const { nome, email, cep } = req.body;
 
   if (emailExists(email)) {
@@ -49,6 +55,11 @@ const getUserById = (req, res) => {
 const updateUser = async (req, res) => {
   const { id } = req.params;
   
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
   const userIndex = users.findIndex(u => u.id === parseInt(id));
 
   if (userIndex === -1) {
@@ -78,9 +89,23 @@ const updateUser = async (req, res) => {
   return res.status(200).json({ message: 'Usuário atualizado com sucesso', user: users[userIndex] });
 };
 
+const deleteUser = (req, res) => {
+  const { id } = req.params;
+  const userIndex = users.findIndex(u => u.id === parseInt(id));
+
+  if (userIndex === -1) {
+    return res.status(404).json({ message: 'Usuário não encontrado' });
+  }
+
+  users.splice(userIndex, 1);
+
+  return res.status(200).json({ message: 'Usuário deletado com sucesso' });
+};
+
 module.exports = {
   registerUser,
   getAllUsers,
   getUserById,
-  updateUser
+  updateUser,
+  deleteUser
 };
