@@ -31,14 +31,13 @@ Permite cadastrar, listar e editar usuários com validações específicas, incl
 
 ```
 node-form/
-├── backend/
-│   ├── controllers/
-│   ├── models/
-│   ├── routes/
-│   ├── services/
-│   ├── public/
-│   ├── index.js
-│   └── package.json
+├── controllers/
+├── models/
+├── routes/
+├── services/
+├── public/
+├── index.js
+└── package.json
 └── README.md
 ```
 
