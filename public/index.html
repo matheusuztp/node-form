@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Cadastro de Usuário</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+    }
+    form div {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+    }
+    input {
+      padding: 8px;
+      width: 300px;
+    }
+    button {
+      padding: 10px 20px;
+      margin-right: 10px;
+    }
+    .error {
+      color: red;
+      font-size: 0.9em;
+    }
+    ul {
+      list-style-type: none;
+      padding: 0;
+    }
+    li {
+      padding: 10px;
+      border-bottom: 1px solid #ccc;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    li:hover {
+      background-color: #f0f0f0;
+    }
+    .user-info {
+      cursor: pointer;
+      flex-grow: 1;
+    }
+    .actions button {
+      padding: 5px 10px;
+      margin-left: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h2>Cadastro de Usuário</h2>
+  <form id="userForm">
+    <div>
+      <label for="nome">Nome:</label>
+      <input type="text" id="nome" name="nome" required>
+      <p id="nomeError" class="error"></p>
+    </div>
+    <div>
+      <label for="email">Email:</label>
+      <input type="email" id="email" name="email" required>
+      <p id="emailError" class="error"></p>
+    </div>
+    <div>
+      <label for="cep">CEP:</label>
+      <input type="text" id="cep" name="cep" required pattern="\d{8}">
+      <p id="cepError" class="error"></p>
+    </div>
+    <button type="submit">Enviar</button>
+    <button type="button" id="cancelEdit" style="display:none;">Cancelar Edição</button>
+  </form>
+
+  <h3>Lista de Usuários</h3>
+  <ul id="userList"></ul>
+
+  <script>
+    let isEditing = false;
+    let editingUserId = null;
+
+    const form = document.getElementById('userForm');
+    const userList = document.getElementById('userList');
+    const cancelEditBtn = document.getElementById('cancelEdit');
+
+    const nomeInput = document.getElementById('nome');
+    const emailInput = document.getElementById('email');
+    const cepInput = document.getElementById('cep');
+
+    const nomeError = document.getElementById('nomeError');
+    const emailError = document.getElementById('emailError');
+    const cepError = document.getElementById('cepError');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearErrors();
+
+      const nome = nomeInput.value.trim();
+      const email = emailInput.value.trim();
+      const cep = cepInput.value.trim();
+
+      let hasError = false;
+
+      if (!/^[A-Za-z\s]+$/.test(nome)) {
+        nomeError.textContent = 'Nome não pode conter números';
+        hasError = true;
+      }
+
+      if (!validateEmail(email)) {
+        emailError.textContent = 'Email inválido';
+        hasError = true;
+      }
+
+      if (!/^\d{8}$/.test(cep)) {
+        cepError.textContent = 'CEP deve conter 8 números';
+        hasError = true;
+      }
+
+      if (hasError) return;
+
+      const userData = { nome, email, cep };
+
+      try {
+        let response;
+        if (isEditing && editingUserId) {
+          response = await fetch(`/api/users/${editingUserId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(userData)
+          });
+        } else {
+          response = await fetch('/api/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(userData)
+          });
+        }
+
+        const data = await response.json();
+
+        if (response.ok) {
+          alert(isEditing ? 'Usuário atualizado com sucesso!' : 'Usuário registrado com sucesso!');
+          fetchUsers();
+          form.reset();
+          if (isEditing) {
+            isEditing = false;
+            editingUserId = null;
+            cancelEditBtn.style.display = 'none';
+          }
+        } else {
+          data.errors.forEach(err => {
+            document.getElementById(`${err.param}Error`).textContent = err.msg;
+          });
+        }
+      } catch (error) {
+        alert('Ocorreu um erro ao processar a solicitação.');
+        console.error(error);
+      }
+    });
+
+    cancelEditBtn.addEventListener('click', () => {
+      isEditing = false;
+      editingUserId = null;
+      form.reset();
+      cancelEditBtn.style.display = 'none';
+      clearErrors();
+    });
+
+    const fetchUsers = async () => {
+      try {
+        const response = await fetch('/api/users');
+        const data = await response.json();
+        userList.innerHTML = '';
+        data.users.forEach(user => {
+          const li = document.createElement('li');
+
+          const userInfo = document.createElement('span');
+          userInfo.className = 'user-info';
+          userInfo.textContent = `Nome: ${user.nome} | Email: ${user.email} | CEP: ${user.endereco.cep} | Estado: ${user.endereco.state} | Cidade: ${user.endereco.city}`;
+          if (user.endereco.neighborhood) {
+            userInfo.textContent += ` | Bairro: ${user.endereco.neighborhood}`;
+          }
+          if (user.endereco.street) {
+            userInfo.textContent += ` | Rua: ${user.endereco.street}`;
+          }
+          userInfo.addEventListener('click', () => handleEdit(user));
+
+          const actions = document.createElement('div');
+          actions.className = 'actions';
+
+          const deleteBtn = document.createElement('button');
+          deleteBtn.textContent = 'Delete';
+          deleteBtn.addEventListener('click', () => handleDelete(user.id));
+
+          actions.appendChild(deleteBtn);
+
+          li.appendChild(userInfo);
+          li.appendChild(actions);
+          userList.appendChild(li);
+        });
+      } catch (error) {
+        console.error('Erro ao buscar usuários:', error);
+      }
+    };
+
+    const handleEdit = (user) => {
+      isEditing = true;
+      editingUserId = user.id;
+      nomeInput.value = user.nome;
+      emailInput.value = user.email;
+      cepInput.value = user.cep;
+      cancelEditBtn.style.display = 'inline-block';
+    };
+
+    const handleDelete = async (id) => {
+      if (!confirm('Tem certeza que deseja deletar este usuário?')) return;
+
+      try {
+        const response = await fetch(`/api/users/${id}`, {
+          method: 'DELETE',
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          alert('Usuário deletado com sucesso!');
+          fetchUsers();
+          if (isEditing && editingUserId === id) {
+            isEditing = false;
+            editingUserId = null;
+            form.reset();
+            cancelEditBtn.style.display = 'none';
+          }
+        } else {
+          alert(data.message || 'Erro ao deletar o usuário.');
+        }
+      } catch (error) {
+        alert('Ocorreu um erro ao deletar o usuário.');
+        console.error(error);
+      }
+    };
+
+    const clearErrors = () => {
+      nomeError.textContent = '';
+      emailError.textContent = '';
+      cepError.textContent = '';
+    };
+
+    const validateEmail = (email) => {
+      const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return re.test(email);
+    };
+
+    fetchUsers();
+  </script>
+</body>
+</html>
